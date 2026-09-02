@@ -11,7 +11,15 @@ from app.db.session import Base, get_db
 from app.main import app
 from app.models import Appointment, Department, Doctor, DoctorSchedule, Patient, Role, User
 
-BOOKING_DATE = date(2026, 9, 1)
+def next_weekday_date(target_weekday: int) -> date:
+    today = date.today()
+    days_until_target = (target_weekday - today.weekday()) % 7
+    if days_until_target == 0:
+        days_until_target = 7
+    return today + timedelta(days=days_until_target)
+
+
+BOOKING_DATE = next_weekday_date(1)
 
 
 @pytest.fixture()

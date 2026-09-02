@@ -20,7 +20,13 @@ export async function request(path, options = {}) {
   let payload = null
   try { payload = await response.json() } catch { payload = null }
   if (!response.ok) {
-    const error = new Error(payload?.detail || `Request failed (${response.status})`)
+    const detail = Array.isArray(payload?.detail)
+      ? payload.detail.map((item) => {
+        const location = Array.isArray(item.loc) ? item.loc.join('.') : ''
+        return location ? `${location}: ${item.msg}` : item.msg
+      }).join('; ')
+      : payload?.detail
+    const error = new Error(detail || `Request failed (${response.status})`)
     error.status = response.status
     throw error
   }

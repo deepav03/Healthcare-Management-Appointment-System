@@ -13,6 +13,14 @@ from app.models import Department, Doctor, DoctorSchedule, Role, User
 from app.services.schedule_service import generate_available_slots
 
 
+def next_weekday_date(target_weekday: int) -> date:
+    today = date.today()
+    days_until_target = (target_weekday - today.weekday()) % 7
+    if days_until_target == 0:
+        days_until_target = 7
+    return today + timedelta(days=days_until_target)
+
+
 @pytest.fixture()
 def schedule_client():
     engine = create_engine(
@@ -143,7 +151,8 @@ def test_patient_views_active_doctor_availability(schedule_client):
     patient = headers(4, "PATIENT")
     weekly = schedule_client.get("/api/doctors/1/availability", headers=patient)
     assert weekly.status_code == 200
-    daily = schedule_client.get("/api/doctors/1/availability/2026-09-01", headers=patient)
+    availability_date = next_weekday_date(1)
+    daily = schedule_client.get(f"/api/doctors/1/availability/{availability_date.isoformat()}", headers=patient)
     assert daily.status_code == 200
     assert daily.json()["available_slots"] == [
         "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30",
@@ -155,7 +164,8 @@ def test_inactive_doctor_availability_is_hidden(schedule_client):
     admin = headers(1, "ADMIN")
     schedule_client.post("/api/doctors/2/schedules", headers=admin, json=schedule_payload())
     schedule_client.post("/api/doctors/2/deactivate", headers=admin)
-    response = schedule_client.get("/api/doctors/2/availability/2026-09-01", headers=headers(4, "PATIENT"))
+    availability_date = next_weekday_date(1)
+    response = schedule_client.get(f"/api/doctors/2/availability/{availability_date.isoformat()}", headers=headers(4, "PATIENT"))
     assert response.status_code == 404
 
 
@@ -176,7 +186,8 @@ def test_generated_slots_exclude_break_and_booked_slots():
         break_end=time(14),
         is_available=True,
     )
-    slots = generate_available_slots([schedule], date(2026, 9, 1), booked_slots=["09:30", time(14, 30)])
+    future_tuesday = next_weekday_date(1)
+    slots = generate_available_slots([schedule], future_tuesday, booked_slots=["09:30", time(14, 30)])
     assert "13:00" not in slots
     assert "13:30" not in slots
     assert "09:30" not in slots
@@ -191,4 +202,4 @@ def test_unavailable_schedule_generates_no_slots():
         appointment_duration=30,
         is_available=False,
     )
-    assert generate_available_slots([schedule], date(2026, 9, 1)) == []
+    assert generate_available_slots([schedule], next_weekday_date(1)) == []
